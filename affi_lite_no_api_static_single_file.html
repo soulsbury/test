@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Affi‑Lite • 썸네일+가격 미러</title>
+  <style>
+    :root{--bg:#0b0c0e;--card:#121317;--line:#2a2d33;--muted:#cfd1d6;--text:#e8e8ea}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,Inter,\"Noto Sans KR\",Roboto,Segoe UI,sans-serif}
+    header{padding:28px 16px 10px;text-align:center}
+    header h1{margin:0;font-size:22px}
+    header p{opacity:.7;margin:6px 0 0;font-size:13px}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:10px 14px}
+    .pill{border:1px solid #3b3d43;background:#14161a;color:#eaf0ff;opacity:.9;padding:8px 12px;border-radius:999px;font-size:12px;cursor:pointer}
+    .pill.active{border-color:#8aa0ff;background:#1b2030}
+    .controls{display:flex;gap:10px;justify-content:center;padding:6px 14px 12px}
+    .controls input,.controls select{background:#11131a;border:1px solid #2a2f3f;color:#e8e8ea;border-radius:10px;padding:8px 10px;font-size:13px;min-width:180px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:14px}
+    @media(min-width:720px){.grid{grid-template-columns:repeat(4,1fr)}}
+    @media(min-width:1100px){.grid{grid-template-columns:repeat(6,1fr)}}
+    .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:transform .12s ease,border-color .12s ease}
+    .card:hover{transform:translateY(-2px);border-color:#404654}
+    .thumb-wrap{aspect-ratio:1/1;background:#0f1013;display:flex;align-items:center;justify-content:center}
+    .thumb{max-width:100%;max-height:100%;object-fit:contain}
+    .meta{padding:10px 10px 12px}
+    .brand{font-size:12px;opacity:.8;letter-spacing:.2px;text-transform:uppercase}
+    .name{font-size:13px;margin-top:2px;line-height:1.25;height:34px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .price{margin-top:8px;font-weight:700}
+    .footer{padding:16px 12px 40px;text-align:center;opacity:.6;font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Affi‑Lite</h1>
+    <p>브랜드 썸네일 + 가격만. 클릭 시 공식 상세 페이지로 이동.</p>
+  </header>
+
+  <!-- 카테고리 탭 -->
+  <nav id="tabs" class="toolbar"></nav>
+
+  <!-- 검색 / 정렬 -->
+  <section class="controls">
+    <input id="q" type="search" placeholder="검색: 브랜드/상품명" />
+    <select id="sort">
+      <option value="new">최신순</option>
+      <option value="priceAsc">가격↑</option>
+      <option value="priceDesc">가격↓</option>
+      <option value="brand">브랜드 A–Z</option>
+    </select>
+  </section>
+
+  <!-- 그리드 -->
+  <main id="grid" class="grid" aria-live="polite"></main>
+
+  <div class="footer">데이터는 로컬 JSON에서 로드됩니다. 제휴 피드 없이도 운영 가능.</div>
+
+  <script>
+    // ===== 1) 카테고리 정의 (원하면 여기만 고치면 됨) =====
+    const CATEGORIES = [
+      'ALL', 'COATS','LEATHER','BOMBER','KNIT','TOPS','PANTS','SUIT','SHOES','BAGS','EYEWEAR'
+    ];
+
+    // ===== 2) 상품 데이터 (제휴 피드 없이 수동 관리) =====
+    // 필요한 만큼 항목을 추가하세요. image_url은 브랜드 썸네일 링크 사용 권장.
+    const PRODUCTS = [
+      { id:'sl-coat-001', brand:'SAINT LAURENT', name:'Long Wool Coat in Black', image_url:'https://via.placeholder.com/800x800.png?text=SAINT+LAURENT+COAT', price:2650000, currency:'KRW', url:'https://www.ysl.com/', categories:['COATS'], ts:'2025-08-10' },
+      { id:'val-coat-001', brand:'Valentino Garavani', name:'Double-breasted Cashmere Coat', image_url:'https://via.placeholder.com/800x800.png?text=VALENTINO+COAT', price:3100000, currency:'KRW', url:'https://www.valentino.com/', categories:['COATS'], ts:'2025-08-09' },
+      { id:'loe-bag-001', brand:'LOEWE', name:'Leather Backpack', image_url:'https://via.placeholder.com/800x800.png?text=LOEWE+BACKPACK', price:2100000, currency:'KRW', url:'https://www.loewe.com/', categories:['BAGS'], ts:'2025-08-08' },
+      { id:'zeg-suit-001', brand:'ZEGNA', name:'Trofeo Wool Suit', image_url:'https://via.placeholder.com/800x800.png?text=ZEGNA+SUIT', price:3800000, currency:'KRW', url:'https://www.zegna.com/', categories:['SUIT'], ts:'2025-08-07' },
+      { id:'mul-bag-001', brand:'Mulberry', name:'Briefcase in Oak', image_url:'https://via.placeholder.com/800x800.png?text=MULBERRY+BRIEF', price:1200000, currency:'KRW', url:'https://www.mulberry.com/', categories:['BAGS'], ts:'2025-08-06' },
+      { id:'lp-knit-001', brand:'Loro Piana', name:'Cashmere Crewneck', image_url:'https://via.placeholder.com/800x800.png?text=LORO+PIANA+KNIT', price:2400000, currency:'KRW', url:'https://www.loropiana.com/', categories:['KNIT','TOPS'], ts:'2025-08-05' },
+      { id:'gm-eyewear-001', brand:'Gentle Monster', name:'Tinted Acetate Sunglasses', image_url:'https://via.placeholder.com/800x800.png?text=GENTLE+MONSTER', price:320000, currency:'KRW', url:'https://www.gentlemonster.com/', categories:['EYEWEAR'], ts:'2025-08-04' },
+    ];
+
+    // ===== 3) 상태 =====
+    let activeCat = 'ALL';
+    let query = '';
+    let sort = 'new';
+
+    // ===== 4) 렌더링 =====
+    const tabsEl = document.getElementById('tabs');
+    const gridEl = document.getElementById('grid');
+    const qEl = document.getElementById('q');
+    const sortEl = document.getElementById('sort');
+
+    function renderTabs(){
+      tabsEl.innerHTML = '';
+      CATEGORIES.forEach(cat => {
+        const b = document.createElement('button');
+        b.className = 'pill' + (activeCat===cat ? ' active' : '');
+        b.textContent = cat;
+        b.onclick = () => { activeCat = cat; renderGrid(); renderTabs(); };
+        tabsEl.appendChild(b);
+      });
+    }
+
+    function formatPrice(v, cur){
+      try { return new Intl.NumberFormat('ko-KR', {style:'currency', currency: cur||'KRW'}).format(v); }
+      catch { return `${v} ${cur||''}`; }
+    }
+
+    function bySort(a,b){
+      if(sort==='priceAsc') return (a.price||0) - (b.price||0);
+      if(sort==='priceDesc') return (b.price||0) - (a.price||0);
+      if(sort==='brand') return (a.brand||'').localeCompare(b.brand||'');
+      // 최신순(ts: YYYY-MM-DD)
+      return (b.ts||'').localeCompare(a.ts||'');
+    }
+
+    function matches(p){
+      const inCat = activeCat==='ALL' || (p.categories||[]).includes(activeCat);
+      const q = query.trim().toLowerCase();
+      if(!q) return inCat;
+      const hay = `${p.brand} ${p.name}`.toLowerCase();
+      return inCat && hay.includes(q);
+    }
+
+    function renderGrid(){
+      const data = PRODUCTS.filter(matches).sort(bySort);
+      gridEl.innerHTML = '';
+      data.forEach(p => {
+        const a = document.createElement('a');
+        a.className = 'card';
+        a.href = p.url; a.target = '_blank'; a.rel = 'noopener';
+        a.innerHTML = `
+          <div class=\"thumb-wrap\"><img class=\"thumb\" alt=\"${escapeHtml(p.name)}\" src=\"${escapeHtml(p.image_url)}\" onerror=\"this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'600\\' height=\\'600\\'%3E%3Crect width=\\'100%25\\' height=\\'100%25\\' fill=\\'%230f1013\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' fill=\\'%23666\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-family=\\'Inter, Arial\\' font-size=\\'18\\'%3ENO IMAGE%3C/text%3E%3C/svg%3E'\" /></div>
+          <div class=\"meta\">
+            <div class=\"brand\">${escapeHtml(p.brand || '')}</div>
+            <div class=\"name\">${escapeHtml(p.name || '')}</div>
+            <div class=\"price\">${formatPrice(p.price, p.currency)}</div>
+          </div>`;
+        gridEl.appendChild(a);
+      });
+      if(data.length===0){ gridEl.innerHTML = '<div style="opacity:.7;padding:30px;text-align:center">해당 조건의 상품이 없습니다.</div>'; }
+    }
+
+    function escapeHtml(s){return String(s).replace(/[&<>\"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+
+    // 이벤트
+    qEl.addEventListener('input', e=>{ query = e.target.value; renderGrid(); });
+    sortEl.addEventListener('change', e=>{ sort = e.target.value; renderGrid(); });
+
+    // 초기화
+    renderTabs();
+    renderGrid();
+  </script>
+</body>
+</html>
